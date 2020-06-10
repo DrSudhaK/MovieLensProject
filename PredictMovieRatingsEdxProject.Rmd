@@ -444,6 +444,7 @@ naive_rmse <- RMSE(edx$rating, mu)
 rmse_results <- tibble(method = "Average movie rating model", RMSE = naive_rmse)
 rmse_results %>% knitr::kable()
 ```
+
 ### Movie effect model
 
 * Simple model taking into account the movie effect b_i
@@ -581,7 +582,7 @@ rmse_results <- bind_rows(rmse_results,
                           tibble(method="Movie and User effects and Matrix Fact. on validation set",
                                  RMSE = model_3_rmse))
 ```
-# Results of all Methods
+# Results of all Models
 ```{r}
 rmse_results %>% knitr::kable()
 ```
