@@ -1,0 +1,598 @@
+---
+dataMaid: yes
+title: MovieLens Project 
+subtitle: "HarvardX: PH125.9x Data Science: Capstone:  Sudha Kankipati"
+date: 2020-06-10 
+output: pdf_document
+geometry: margin=2cm
+documentclass: report
+header-includes:
+  - \renewcommand{\chaptername}{Part}
+  - \newcommand{\fullline}{\noindent\makebox[\linewidth]{\rule{\textwidth}{0.4pt}}}
+  - \newcommand{\bminione}{\begin{minipage}{0.75 \textwidth}}
+  - \newcommand{\bminitwo}{\begin{minipage}{0.25 \textwidth}}
+  - \newcommand{\emini}{\end{minipage}}
+---
+
+# Introduction
+Recommendation systems use rating data from many products and users to make 
+recommendations for a specific user.  
+Will use the following code to generate datasets and develop algorithm using the edx set.
+For a final test of algorithm, We predict movie ratings in the validation set
+as if they were unknown.RMSE will be used to evaluate how close predictions are
+to the true values in the validation set.
+
+# Data Preparation
+ Create edx set, validation set
+ Note: this process could take a couple of minutes
+```{r}
+if(!require(tidyverse))install.packages("tidyverse", repos ="http://cran.us.r-project.org")
+if(!require(caret))install.packages("caret", repos ="http://cran.us.r-project.org")
+if(!require(data.table))install.packages("data.table", repos ="http://cran.us.r-project.org")
+```
+ MovieLens 10M dataset:
+ https://grouplens.org/datasets/movielens/10m/
+ http://files.grouplens.org/datasets/movielens/ml-10m.zip
+```{r}
+dl <- tempfile()
+download.file("http://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
+
+ratings <- fread(text = gsub("::", "\t", readLines(unzip(dl, "ml-10M100K/ratings.dat"))),
+                 col.names = c("userId", "movieId", "rating", "timestamp"))
+
+
+movies <- str_split_fixed(readLines(unzip(dl, "ml-10M100K/movies.dat")), "\\::", 3)
+colnames(movies) <- c("movieId", "title", "genres")
+movies <- as.data.frame(movies) %>% mutate(movieId = as.numeric(levels(movieId))[movieId],
+                                           title = as.character(title),
+                                           genres = as.character(genres))
+
+movielens <- left_join(ratings, movies, by = "movieId")
+```
+Validation set will be 10% of MovieLens data
+```{r}
+set.seed(1, sample.kind="Rounding")
+```
+if using R 3.5 or earlier, use `set.seed(1)` instead
+```{r}
+test_index <- createDataPartition(y = movielens$rating, times = 1, p = 0.1, list = FALSE)
+edx <- movielens[-test_index,]
+temp <- movielens[test_index,]
+```
+Make sure userId and movieId in validation set are also in edx set
+```{r}
+validation <- temp %>% 
+  semi_join(edx, by = "movieId") %>%
+  semi_join(edx, by = "userId")
+```
+ Add rows removed from validation set back into edx set
+```{r}
+removed <- anti_join(temp, validation)
+edx <- rbind(edx, removed)
+
+rm(dl, ratings, movies, test_index, temp, movielens, removed)
+```
+# Data Exploration
+Before creating the model,Understanding the features of the rating data set.
+This step will help build a better model.
+
+```{r , echo=FALSE, include=FALSE, warning=FALSE, message=FALSE, error=FALSE}
+library("ggplot2")
+library("pander")
+```
+
+```{r}
+ggAggHist <- getFromNamespace("ggAggHist", "dataMaid")
+ggAggBarplot <- getFromNamespace("ggAggBarplot", "dataMaid")
+```
+
+## Data report overview
+The dataset examined has the following dimensions:
+
+----------------------------------
+Feature                     Result
+------------------------ ---------
+Number of observations     9000055
+
+Number of variables              6
+----------------------------------
+
+
+### Checks performed
+The following variable checks were performed, depending on the data type of each variable:
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+&nbsp;                                                 character    factor    labelled   haven labelled   numeric    integer    logical     Date   
+----------------------------------------------------- ----------- ---------- ---------- ---------------- ---------- ---------- --------- ----------
+Identify miscoded missing values                       $\times$    $\times$   $\times$      $\times$      $\times$   $\times$             $\times$ 
+
+Identify prefixed and suffixed whitespace              $\times$    $\times$   $\times$      $\times$                                               
+
+Identify levels with < 6 obs.                          $\times$    $\times$   $\times$      $\times$                                               
+
+Identify case issues                                   $\times$    $\times$   $\times$      $\times$                                               
+
+Identify misclassified numeric or integer variables    $\times$    $\times$   $\times$      $\times$                                               
+
+Identify outliers                                                                                         $\times$   $\times$             $\times$ 
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+Please note that all numerical values in the following have been rounded to 2 decimals.
+
+
+### Summary table
+
+---------------------------------------------------------------------------------------
+&nbsp;        Variable class     # unique values   Missing observations  Any problems? 
+------------- ---------------- ----------------- ---------------------- ---------------
+[userId]      integer                      69878                 0.00 %                
+
+[movieId]     numeric                      10677                 0.00 %    $\times$    
+
+[rating]      numeric                         10                 0.00 %    $\times$    
+
+[timestamp]   integer                    6519590                 0.00 %                
+
+[title]       character                        1               100.00 %    $\times$    
+
+[genres]      character                        1               100.00 %    $\times$    
+---------------------------------------------------------------------------------------
+
+
+
+
+## Variable list
+### userId
+
+\bminione
+
+----------------------------------------
+Feature                           Result
+------------------------- --------------
+Variable type                    integer
+
+Number of missing obs.           0 (0 %)
+
+Number of unique values            69878
+
+Median                             35738
+
+1st and 3rd quartiles       18124; 53607
+
+Min. and max.                   1; 71567
+----------------------------------------
+
+
+\emini
+\bminitwo
+```{r 'Var-1-userId', echo=FALSE, fig.width=4, fig.height=3, message=FALSE, warning=FALSE}
+ggAggHist(data = structure(list(xmin = c(0, 5000, 10000, 15000, 
+20000, 25000, 30000, 35000, 40000, 45000, 50000, 55000, 60000, 
+65000, 70000), xmax = c(5000, 10000, 15000, 20000, 25000, 30000, 
+35000, 40000, 45000, 50000, 55000, 60000, 65000, 70000, 75000
+), ymin = c(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), ymax = c(586293L, 
+643123L, 624851L, 643486L, 636445L, 640125L, 631925L, 632813L, 
+631573L, 623177L, 617584L, 617321L, 632097L, 629695L, 209547L
+)), class = "data.frame", row.names = c(NA, -15L)), vnam = "userId")
+```
+
+\emini
+
+
+
+
+\fullline
+
+### movieId
+
+\bminione
+
+-------------------------------------
+Feature                        Result
+------------------------- -----------
+Variable type                 numeric
+
+Number of missing obs.        0 (0 %)
+
+Number of unique values         10677
+
+Median                           1834
+
+1st and 3rd quartiles       648; 3626
+
+Min. and max.                1; 65133
+-------------------------------------
+
+
+\emini
+\bminitwo
+```{r 'Var-2-movieId', echo=FALSE, fig.width=4, fig.height=3, message=FALSE, warning=FALSE}
+ggAggHist(data = structure(list(xmin = c(0, 2000, 4000, 6000, 
+8000, 10000, 12000, 14000, 16000, 18000, 20000, 22000, 24000, 
+26000, 28000, 30000, 32000, 34000, 36000, 38000, 40000, 42000, 
+44000, 46000, 48000, 50000, 52000, 54000, 56000, 58000, 60000, 
+62000, 64000), xmax = c(2000, 4000, 6000, 8000, 10000, 12000, 
+14000, 16000, 18000, 20000, 22000, 24000, 26000, 28000, 30000, 
+32000, 34000, 36000, 38000, 40000, 42000, 44000, 46000, 48000, 
+50000, 52000, 54000, 56000, 58000, 60000, 62000, 64000, 66000
+), ymin = c(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), ymax = c(4729781L, 
+2327700L, 920786L, 447994L, 162822L, 0L, 0L, 0L, 0L, 0L, 0L, 
+0L, 4394L, 36334L, 0L, 34167L, 43208L, 22262L, 16798L, 13628L, 
+23194L, 10991L, 37955L, 21373L, 35031L, 18137L, 21590L, 29884L, 
+15466L, 15251L, 8165L, 2504L, 640L)), class = "data.frame", row.names = c(NA, 
+-33L)), vnam = "movieId")
+```
+
+\emini
+
+
+- Note that the following possible outlier values were detected: \"25736\", \"25737\", \"25744\", \"25746\", \"25750\", \"25752\", \"25753\", \"25755\", \"25757\", \"25759\" (2351 additional values omitted). 
+
+
+
+\fullline
+
+### rating
+
+\bminione
+
+-----------------------------------
+Feature                      Result
+------------------------- ---------
+Variable type               numeric
+
+Number of missing obs.      0 (0 %)
+
+Number of unique values          10
+
+Median                            4
+
+1st and 3rd quartiles          3; 4
+
+Min. and max.                0.5; 5
+-----------------------------------
+
+
+\emini
+\bminitwo
+```{r 'Var-3-rating', echo=FALSE, fig.width=4, fig.height=3, message=FALSE, warning=FALSE}
+ggAggHist(data = structure(list(xmin = c(0.4, 0.6, 0.8, 1, 1.2, 
+1.4, 1.6, 1.8, 2, 2.2, 2.4, 2.6, 2.8, 3, 3.2, 3.4, 3.6, 3.8, 
+4, 4.2, 4.4, 4.6, 4.8), xmax = c(0.6, 0.8, 1, 1.2, 1.4, 1.6, 
+1.8, 2, 2.2, 2.4, 2.6, 2.8, 3, 3.2, 3.4, 3.6, 3.8, 4, 4.2, 4.4, 
+4.6, 4.8, 5), ymin = c(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0), ymax = c(85374L, 0L, 345679L, 
+0L, 0L, 106426L, 0L, 711422L, 0L, 0L, 333010L, 0L, 2121240L, 
+0L, 0L, 791624L, 0L, 2588430L, 0L, 0L, 526736L, 0L, 1390114L)), class = "data.frame", row.names = c(NA, 
+-23L)), vnam = "rating")
+```
+
+\emini
+
+
+- Note that the following possible outlier values were detected: \"4.5\", \"5\". 
+
+
+
+\fullline
+
+### timestamp
+
+\bminione
+
+-------------------------------------------------
+Feature                                    Result
+------------------------- -----------------------
+Variable type                             integer
+
+Number of missing obs.                    0 (0 %)
+
+Number of unique values                   6519590
+
+Median                                 1035493918
+
+1st and 3rd quartiles       946768283; 1126750881
+
+Min. and max.               789652009; 1231131736
+-------------------------------------------------
+
+
+\emini
+\bminitwo
+```{r 'Var-4-timestamp', echo=FALSE, fig.width=4, fig.height=3, message=FALSE, warning=FALSE}
+ggAggHist(data = structure(list(xmin = c(780000000L, 800000000L, 
+820000000L, 840000000L, 860000000L, 880000000L, 900000000L, 920000000L, 
+940000000L, 960000000L, 980000000L, 1000000000L, 1020000000L, 
+1040000000L, 1060000000L, 1080000000L, 1100000000L, 1120000000L, 
+1140000000L, 1160000000L, 1180000000L, 1200000000L, 1220000000L
+), xmax = c(800000000L, 820000000L, 840000000L, 860000000L, 880000000L, 
+900000000L, 920000000L, 940000000L, 960000000L, 980000000L, 1000000000L, 
+1020000000L, 1040000000L, 1060000000L, 1080000000L, 1100000000L, 
+1120000000L, 1140000000L, 1160000000L, 1180000000L, 1200000000L, 
+1220000000L, 1240000000L), ymin = c(0, 0, 0, 0, 0, 0, 0, 0, 0, 
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), ymax = c(2L, 0L, 470532L, 
+639530L, 227202L, 82809L, 141303L, 192846L, 928486L, 765087L, 
+444427L, 378206L, 310697L, 415366L, 408194L, 417369L, 761073L, 
+488977L, 422164L, 445494L, 370177L, 386887L, 303227L)), class = "data.frame", row.names = c(NA, 
+-23L)), vnam = "timestamp")
+```
+
+\emini
+
+
+
+
+\fullline
+
+### title
+
+* The variable only takes one value: \"NA\".
+
+
+
+\fullline
+
+### genres
+
+* The variable only takes one value: \"NA\".
+
+
+
+\fullline
+
+### showing train set
+```{r}
+edx %>% as_tibble()
+
+edx %>% summarize(
+  n_users=n_distinct(userId),# unique users from train set
+  n_movies=n_distinct(movieId),# unique movies from train set
+  min_rating=min(rating), # the lowest rating in train set
+  max_rating=max(rating) # the highest rating in train set
+)
+```
+
+\fullline
+# Data Cleaning
+## Removing genres and timestamp.
+```{r}
+edx <- edx %>% select(userId, movieId, rating, title)
+validation <- validation %>% select(userId, movieId, rating, title)
+```
+
+\fullline
+#  Data Visualization
+## Movies exploration
+Checking number of different movies present in 'edx' set
+```{r}
+length(unique(edx$movieId))
+```
+Distribution of movies: Movies rated more than others (histogram)
+```{r , warning=FALSE, message=FALSE, error=FALSE}
+edx %>% group_by(movieId) %>%
+  summarise(n=n()) %>%
+  ggplot(aes(n)) +
+  geom_histogram(bin = 30, color = "white") +
+  scale_x_log10() + 
+  ggtitle("Movies")
+```
+
+## Users exploration
+Checking number of different users present in 'edx' set
+```{r}
+length(unique(edx$userId))
+```
+Distribution of users
+```{r, warning=FALSE, message=FALSE, error=FALSE}
+edx %>% group_by(userId) %>%
+  summarise(n=n()) %>%
+  arrange(n) %>%
+  head()
+```
+\fullline
+
+## Insights
+* The first thing we notice is that some movies get rated more than others.
+Here is the distribution: plot count rating by movie
+```{r}
+edx %>%
+  count(movieId) %>%
+  ggplot(aes(n)) +
+  geom_histogram(bins = 30, color = "White") +
+  scale_x_log10() +
+  ggtitle("Movies")
+```
+* Our second observation is that some users are more active than others at rating movies:
+plot count rating by user
+```{r}
+edx %>%
+  count(userId) %>%
+  ggplot(aes(n)) +
+  geom_histogram(bins = 30, color = "green") +
+  scale_x_log10() +
+  ggtitle("Users")
+```
+
+\fullline  
+
+# Methods and Analysis
+
+## RMSE
+Root Mean Squared Error (RMSE) is the indicator used to compare the predicted value 
+with the actual outcome. During the model development, we use the test(edx) set to 
+predict the outcome. 
+When the model is ready, then we use the 'validation' set.
+
+### Linear Model
+Average movie rating model 
+
+* compute mean rating
+```{r}
+mu <- mean(edx$rating) 
+mu
+```
+* compute root mean standard error
+```{r}
+naive_rmse <- RMSE(edx$rating, mu) 
+```
+
+* Check results and  Save prediction in tibble
+```{r}
+rmse_results <- tibble(method = "Average movie rating model", RMSE = naive_rmse)
+rmse_results %>% knitr::kable()
+```
+### Movie effect model
+
+* Simple model taking into account the movie effect b_i
+Subtract the rating minus the mean for each rating the movie received
+Plot number of movies with the computed b_i
+```{r , warning=FALSE, message=FALSE, error=FALSE}
+movie_avgs <- edx %>%
+  group_by(movieId) %>%
+  summarize(b_i = mean(rating - mu))
+movie_avgs %>% qplot(b_i, geom ="histogram", bins = 10, data = ., color = I("White"),
+         ylab = "Number of movies", main = "Number of movies with the computed b_i")
+```
+* Test and save rmse results 
+```{r, warning=FALSE, message=FALSE, error=FALSE}
+predicted_ratings <- mu +  validation %>%
+  left_join(movie_avgs, by='movieId') %>%
+  pull(b_i)
+model_1_rmse <- RMSE(predicted_ratings, validation$rating)
+rmse_results <- bind_rows(rmse_results,
+                          tibble(method="Movie effect model",  
+                                     RMSE = model_1_rmse ))
+```
+* Check results
+```{r}
+rmse_results %>% knitr::kable()
+```
+
+## Matrix factorization
+recosystem is a package for recommendation system
+using Matrix Factorization. High performance multi-core
+parallel computing is supported in this package.
+
+```{r}
+if(!require(recosystem)) 
+  install.packages("recosystem", repos = "http://cran.us.r-project.org")
+set.seed(1)
+```
+### This is a randomized algorithm
+
+### Converting the train and test sets into recosystem input format
+```{r, warning=FALSE, message=FALSE, error=FALSE}
+train_data <-  with(edx, data_memory(user_index = userId, 
+                                           item_index = movieId, 
+                                           rating     = rating))
+test_data  <-  with(validation,  data_memory(user_index = userId, 
+                                           item_index = movieId, 
+                                           rating     = rating))
+```
+### Create the model object
+```{r, warning=FALSE, message=FALSE, error=FALSE}
+recommender <-  recosystem::Reco()
+```
+
+### Select the best tuning parameters
+```{r, warning=FALSE, message=FALSE, error=FALSE}
+opts <- recommender$tune(train_data, opts = list(dim = c(10, 20, 30), 
+                                       lrate = c(0.1, 0.2),
+                                       costp_l2 = c(0.01, 0.1), 
+                                       costq_l2 = c(0.01, 0.1),
+                                       nthread  = 4, niter = 10))
+```
+
+### Training the algorithm  
+```{r}
+recommender$train(train_data, opts = c(opts$min, nthread = 4, niter = 20))
+```
+
+### Calculate the predicted values  
+
+* We predict unknown entries in the rating matrix on test set.
+use the `$predict()` method to compute predicted values
+return predicted values in memory
+```{r}
+predicted_ratings <-  recommender$predict(test_data, out_memory())
+head(predicted_ratings, 10)#We use the test set for the final assessment
+```
+
+* ceiling rating at 5
+```{r}
+ind <- which(predicted_ratings > 5)
+predicted_ratings[ind] <- 5
+```
+
+* floor rating at 0.50
+```{r}
+ind <- which(predicted_ratings < 0.5)
+predicted_ratings[ind] <- 0.5
+```
+* create a results table with this approach
+```{r}
+model_2_rmse <- RMSE(validation$rating, predicted_ratings)
+rmse_results <- bind_rows(rmse_results,
+                          tibble(method="Movie and User + Matrix Fact. on test set",
+                                 RMSE = model_2_rmse))
+rmse_results %>% knitr::kable()
+set.seed(1)
+```
+
+### Converting 'edx' and 'validation' sets to recosystem input format
+```{r}
+edx_reco <-  with(edx, data_memory(user_index = userId, 
+                                   item_index = movieId, 
+                                   rating = rating))
+validation_reco  <-  with(validation, data_memory(user_index = userId, 
+                                                  item_index = movieId, 
+                                                  rating = rating))
+```
+
+### Create the model object
+```{r}
+recommender <-  recosystem::Reco()
+```
+### Tune the parameters
+```{r}
+opts <-  recommender$tune(edx_reco, opts = list(dim = c(10, 20, 30), 
+                                      lrate = c(0.1, 0.2),
+                                      costp_l2 = c(0.01, 0.1), 
+                                      costq_l2 = c(0.01, 0.1),
+                                      nthread  = 4, niter = 10))
+```
+
+# Training the model
+```{r}
+recommender$train(edx_reco, opts = c(opts$min, nthread = 4, niter = 20))
+```
+
+* create a results table with this and prior approaches
+Calculate the prediction
+```{r}
+predicted_ratings <-  recommender$predict(validation_reco, out_memory())
+
+
+model_3_rmse <- RMSE(validation$rating, predicted_ratings)
+rmse_results <- bind_rows(rmse_results,
+                          tibble(method="Movie and User effects and Matrix Fact. on validation set",
+                                 RMSE = model_3_rmse))
+rmse_results %>% knitr::kable()
+```
+
+# Conclusion   
+We reach a RMSE of `r model_3_rmse ` on validation set using the full edx set for training. 
+The model Movie and User effects and Matrix Factorization achieved this performance using the
+methodology presented in the course’s book 
+(https://rafalab.github.io/dsbook/largedatasets.html#recommendation-systems)
+
+Report generation information:
+ *  Created by: Sudha Kankipati
+ *  Report creation time: Wed Jun 10 2020 
+ *  R version 4.0.0 (2020-04-24).
+ *  Platform: x86_64-w64-mingw32/x64 (64-bit)(Windows 10 x64 (build 18363)).
+
+ 
