@@ -565,11 +565,11 @@ opts <-  recommender$tune(edx_reco, opts = list(dim = c(10, 20, 30),
                                       nthread  = 4, niter = 10))
 ```
 
-# Training the model
+## Training the model
 ```{r}
 recommender$train(edx_reco, opts = c(opts$min, nthread = 4, niter = 20))
 ```
-# Results
+
 * create a results table with this and prior approaches
 Calculate the prediction
 ```{r}
@@ -580,6 +580,9 @@ model_3_rmse <- RMSE(validation$rating, predicted_ratings)
 rmse_results <- bind_rows(rmse_results,
                           tibble(method="Movie and User effects and Matrix Fact. on validation set",
                                  RMSE = model_3_rmse))
+```
+# Results of all Methods
+```{r}
 rmse_results %>% knitr::kable()
 ```
 
@@ -590,10 +593,15 @@ methodology presented in the course’s book
 (https://rafalab.github.io/dsbook/largedatasets.html#recommendation-systems)
 
 Report generation information:
+
  *  Created by: Sudha Kankipati
+ 
  *  Report creation time: Wed Jun 10 2020 
+ 
  *  R version 4.0.0 (2020-04-24).
+ 
  *  Platform: x86_64-w64-mingw32/x64 (64-bit)(Windows 10 x64 (build 18363)).
+ 
  * https://github.com/DrSudhaK/MovieLensProject.git
 
  
