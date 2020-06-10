@@ -17,13 +17,14 @@ header-includes:
 # Introduction
 Recommendation systems use rating data from many products and users to make 
 recommendations for a specific user.  
-Will use the following code to generate datasets and develop algorithm using the edx set.
+We Will use the following code to generate datasets and develop algorithm using 
+the edx set.
 For a final test of algorithm, We predict movie ratings in the validation set
 as if they were unknown.RMSE will be used to evaluate how close predictions are
 to the true values in the validation set.
 
 # Data Preparation
- Create edx set, validation set
+ creating edx set and validation set
  Note: this process could take a couple of minutes
 ```{r}
 if(!require(tidyverse))install.packages("tidyverse", repos ="http://cran.us.r-project.org")
@@ -76,12 +77,24 @@ rm(dl, ratings, movies, test_index, temp, movielens, removed)
 Before creating the model,Understanding the features of the rating data set.
 This step will help build a better model.
 
+*using dataMaid code in R script
+
+if(!require(dataMaid)) install.packages("dataMaid", repos = "http://cran.us.r-project.org")
+
+library(dataMaid)
+
+makeDataReport(edx, replace=TRUE)
+
+* Note I converted R code to .Rmd code to incorporate the results in PDF document
+Function call: makeDataReport(data = edx, replace = TRUE)
+
+
 ```{r , echo=FALSE, include=FALSE, warning=FALSE, message=FALSE, error=FALSE}
 library("ggplot2")
 library("pander")
 ```
 
-```{r}
+```{r, echo=FALSE}
 ggAggHist <- getFromNamespace("ggAggHist", "dataMaid")
 ggAggBarplot <- getFromNamespace("ggAggBarplot", "dataMaid")
 ```
@@ -493,7 +506,7 @@ test_data  <-  with(validation,  data_memory(user_index = userId,
                                            item_index = movieId, 
                                            rating     = rating))
 ```
-### Create the model object
+### creating the model object
 ```{r, warning=FALSE, message=FALSE, error=FALSE}
 recommender <-  recosystem::Reco()
 ```
@@ -533,11 +546,11 @@ predicted_ratings[ind] <- 5
 ind <- which(predicted_ratings < 0.5)
 predicted_ratings[ind] <- 0.5
 ```
-* create a results table with this approach
+* creating a results table with this approach
 ```{r}
 model_2_rmse <- RMSE(validation$rating, predicted_ratings)
 rmse_results <- bind_rows(rmse_results,
-                          tibble(method="Movie and User + Matrix Fact. on test set",
+                          tibble(method="Movie and User effects and Matrix Fact. on test set",
                                  RMSE = model_2_rmse))
 rmse_results %>% knitr::kable()
 set.seed(1)
@@ -553,7 +566,7 @@ validation_reco  <-  with(validation, data_memory(user_index = userId,
                                                   rating = rating))
 ```
 
-### Create the model object
+### creating the model object
 ```{r}
 recommender <-  recosystem::Reco()
 ```
@@ -571,7 +584,7 @@ opts <-  recommender$tune(edx_reco, opts = list(dim = c(10, 20, 30),
 recommender$train(edx_reco, opts = c(opts$min, nthread = 4, niter = 20))
 ```
 
-* create a results table with this and prior approaches
+* creating a results table with this and prior approaches
 Calculate the prediction
 ```{r}
 predicted_ratings <-  recommender$predict(validation_reco, out_memory())
@@ -582,7 +595,8 @@ rmse_results <- bind_rows(rmse_results,
                           tibble(method="Movie and User effects and Matrix Fact. on validation set",
                                  RMSE = model_3_rmse))
 ```
-# Results of all Models
+# Results 
+* Results of all Models I tried in the process to get less RMSE
 ```{r}
 rmse_results %>% knitr::kable()
 ```
@@ -595,7 +609,7 @@ methodology presented in the course’s book
 
 Report generation information:
 
- *  Created by: Sudha Kankipati
+ *  created by: Sudha Kankipati
  
  *  Report creation time: Wed Jun 10 2020 
  
@@ -603,6 +617,6 @@ Report generation information:
  
  *  Platform: x86_64-w64-mingw32/x64 (64-bit)(Windows 10 x64 (build 18363)).
  
- * https://github.com/DrSudhaK/MovieLensProject.git
+ *  Placed files for this project in https://github.com/DrSudhaK/MovieLensProject.git
 
  

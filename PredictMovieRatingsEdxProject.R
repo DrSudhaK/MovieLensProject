@@ -283,7 +283,7 @@ predicted_ratings[ind] <- 0.5
 # create a results table with this approach
 model_2_rmse <- RMSE(validation$rating, predicted_ratings)
 rmse_results <- bind_rows(rmse_results,
-                          tibble(method="Movie and User + Matrix Fact. on test set",
+                          tibble(method="Movie and User effects and Matrix Fact. on test set",
                                  RMSE = model_2_rmse))
 rmse_results %>% knitr::kable()
 set.seed(1)
