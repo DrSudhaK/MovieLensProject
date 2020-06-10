@@ -569,7 +569,7 @@ opts <-  recommender$tune(edx_reco, opts = list(dim = c(10, 20, 30),
 ```{r}
 recommender$train(edx_reco, opts = c(opts$min, nthread = 4, niter = 20))
 ```
-
+# Results
 * create a results table with this and prior approaches
 Calculate the prediction
 ```{r}
